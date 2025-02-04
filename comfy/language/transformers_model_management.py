@@ -8,6 +8,7 @@ import pathlib
 import warnings
 from functools import reduce
 from typing import Optional, Any, Callable
+from transformers.utils.logging import disable_progress_bar
 
 import torch
 from transformers import PreTrainedModel, PreTrainedTokenizerBase, ProcessorMixin, AutoProcessor, AutoTokenizer, \
@@ -77,6 +78,7 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
                               "low_cpu_mem_usage": True,
                               "device_map": str(unet_offload_device()), }, {})
 
+            disable_progress_bar()
             # if we have flash-attn installed, try to use it
             try:
                 if model_management.flash_attn_enabled():

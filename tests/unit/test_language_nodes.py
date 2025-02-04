@@ -8,6 +8,7 @@ import torch
 from PIL import Image
 
 from comfy.language.language_types import LanguageModel, ProcessorResult
+from comfy_extras.nodes.nodes_anthropic import AnthropicLanguageModelLoader, AnthropicLanguageModelWrapper
 from comfy_extras.nodes.nodes_language import SaveString
 from comfy_extras.nodes.nodes_language import TransformersLoader, OneShotInstructTokenize, TransformersGenerate, \
     PreviewString
@@ -68,7 +69,7 @@ def test_save_string_default_extension(save_string_node, mock_get_save_path):
 
 @pytest.fixture
 def mock_openai_client():
-    with patch('comfy_extras.nodes.nodes_openai._Client') as mock_client:
+    with patch('comfy_extras.nodes.nodes_openai.OpenAIClient') as mock_client:
         instance = mock_client.instance.return_value
         instance.chat.completions.create = Mock()
         instance.images.generate = Mock()
@@ -214,3 +215,169 @@ def test_integration_openai_loader_and_wrapper(mock_openai_client):
     result = model.generate(tokens, max_new_tokens=50)
 
     assert result == "Paris is the capital of France."
+
+
+@pytest.fixture
+def mock_anthropic_client():
+    with patch('comfy_extras.nodes.nodes_anthropic.AnthropicClient') as mock_client:
+        instance = mock_client.instance.return_value
+        instance.messages.create = Mock()
+        yield instance
+
+
+def test_anthropic_language_model_loader():
+    if "ANTHROPIC_API_KEY" not in os.environ:
+        pytest.skip("must set ANTHROPIC_API_KEY")
+    loader = AnthropicLanguageModelLoader()
+    model, = loader.execute("claude-3-5-sonnet-20241022")
+    assert isinstance(model, AnthropicLanguageModelWrapper)
+    assert model.model == "claude-3-5-sonnet-20241022"
+
+
+def test_anthropic_language_model_loader_validate_inputs():
+    loader = AnthropicLanguageModelLoader()
+    with patch.dict(os.environ, {'ANTHROPIC_API_KEY': ''}):
+        with patch('comfy_extras.nodes.nodes_anthropic.args', anthropic_api_key=''):
+            result = loader.VALIDATE_INPUTS()
+            assert result == "set ANTHROPIC_API_KEY environment variable"
+
+    with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test_key'}):
+        result = loader.VALIDATE_INPUTS()
+        assert result is True
+
+
+def test_anthropic_language_model_wrapper_generate(mock_anthropic_client):
+    wrapper = AnthropicLanguageModelWrapper("claude-3-5-sonnet-20241022")
+    mock_stream = [
+        Mock(delta=Mock(text="This ")),
+        Mock(delta=Mock(text="is ")),
+        Mock(delta=Mock(text="a ")),
+        Mock(delta=Mock(text="test ")),
+        Mock(delta=Mock(text="response.")),
+    ]
+
+    mock_anthropic_client.messages.create.return_value = mock_stream
+
+    tokens = {"inputs": ["What is the capital of France?"]}
+    result = wrapper.generate(tokens, max_new_tokens=50)
+
+    mock_anthropic_client.messages.create.assert_called_once_with(
+        model="claude-3-5-sonnet-20241022",
+        messages=[{
+            "role": "user",
+            "content": [{
+                "type": "text",
+                "text": "What is the capital of France?"
+            }]
+        }],
+        max_tokens=50,
+        temperature=1.0,
+        top_p=1.0,
+        stream=True
+    )
+    assert result == "This is a test response."
+
+
+def test_anthropic_language_model_wrapper_generate_with_image(mock_anthropic_client):
+    wrapper = AnthropicLanguageModelWrapper("claude-3-5-sonnet-20241022")
+    mock_stream = [
+        Mock(delta=Mock(text="This ")),
+        Mock(delta=Mock(text="image ")),
+        Mock(delta=Mock(text="shows ")),
+        Mock(delta=Mock(text="a ")),
+        Mock(delta=Mock(text="landscape.")),
+    ]
+    mock_anthropic_client.messages.create.return_value = mock_stream
+
+    # Create a test image tensor
+    image_tensor = torch.rand((1, 224, 224, 3))
+    tokens = {
+        "inputs": ["Describe this image:"],
+        "images": image_tensor
+    }
+    result = wrapper.generate(tokens, max_new_tokens=50)
+
+    # Verify the API call structure
+    mock_anthropic_client.messages.create.assert_called_once()
+    call_args = mock_anthropic_client.messages.create.call_args[1]
+    assert call_args["model"] == "claude-3-5-sonnet-20241022"
+    assert len(call_args["messages"]) == 1
+
+    # Check that image comes before text in content array
+    message_content = call_args["messages"][0]["content"]
+    assert message_content[0]["type"] == "image"
+    assert message_content[-1]["type"] == "text"
+
+    assert result == "This image shows a landscape."
+
+
+def test_anthropic_validate_image_count():
+    wrapper = AnthropicLanguageModelWrapper("claude-3-5-sonnet-20241022")
+
+    # Test valid image counts
+    assert wrapper._validate_image_count(0)
+    assert wrapper._validate_image_count(50)
+    assert wrapper._validate_image_count(100)
+
+    # Test invalid image counts
+    assert not wrapper._validate_image_count(101)
+    assert not wrapper._validate_image_count(-1)
+
+
+def test_anthropic_language_model_wrapper_generate_with_multiple_images(mock_anthropic_client):
+    wrapper = AnthropicLanguageModelWrapper("claude-3-5-sonnet-20241022")
+    mock_stream = [Mock(delta=Mock(text="Response"))]
+    mock_anthropic_client.messages.create.return_value = mock_stream
+
+    # Create multiple test images
+    image_tensors = [torch.rand((1, 224, 224, 3)) for _ in range(3)]
+    tokens = {
+        "inputs": ["Compare these images:"],
+        "images": image_tensors
+    }
+    wrapper.generate(tokens, max_new_tokens=50)
+
+    # Verify correct message structure
+    call_args = mock_anthropic_client.messages.create.call_args[1]
+    message_content = call_args["messages"][0]["content"]
+
+    # Check that all images come before the text
+    image_contents = [content for content in message_content if content["type"] == "image"]
+    text_contents = [content for content in message_content if content["type"] == "text"]
+
+    assert len(image_contents) == 3
+    assert len(text_contents) == 1
+    assert message_content.index(text_contents[0]) > message_content.index(image_contents[-1])
+
+
+def test_integration_anthropic_loader_and_wrapper(mock_anthropic_client):
+    loader = AnthropicLanguageModelLoader()
+    model, = loader.execute("claude-3-5-sonnet-20241022")
+
+    mock_stream = [
+        Mock(delta=Mock(text="Paris ")),
+        Mock(delta=Mock(text="is ")),
+        Mock(delta=Mock(text="the ")),
+        Mock(delta=Mock(text="capital ")),
+        Mock(delta=Mock(text="of France.")),
+    ]
+    mock_anthropic_client.messages.create.return_value = mock_stream
+
+    tokens = {"inputs": ["What is the capital of France?"]}
+    result = model.generate(tokens, max_new_tokens=50)
+
+    assert result == "Paris is the capital of France."
+
+
+def test_anthropic_error_handling(mock_anthropic_client):
+    wrapper = AnthropicLanguageModelWrapper("claude-3-5-sonnet-20241022")
+
+    # Test exceeding image count limit
+    image_tensors = [torch.rand((1, 224, 224, 3)) for _ in range(101)]
+    tokens = {
+        "inputs": ["Too many images"],
+        "images": image_tensors
+    }
+
+    with pytest.raises(ValueError, match="Invalid number of images for AnthropicLanguageModelWrapper"):
+        wrapper.generate(tokens, max_new_tokens=50)

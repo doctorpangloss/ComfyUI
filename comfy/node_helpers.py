@@ -18,7 +18,6 @@ def conditioning_set_values(conditioning, values: dict = None):
 
     return c
 
-
 def pillow(fn, arg):
     prev_value = None
     try:
@@ -31,7 +30,6 @@ def pillow(fn, arg):
         if prev_value is not None:
             ImageFile.LOAD_TRUNCATED_IMAGES = prev_value
     return x
-
 
 def hasher():
     hashfuncs = {

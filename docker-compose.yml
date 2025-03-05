@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - workspace_data:/workspace
+      - $PWD/workspace_data:/workspace
     deploy:
       replicas: 1
       resources:
@@ -35,7 +35,7 @@ services:
     deploy:
       replicas: 1
     volumes:
-      - workspace_data:/workspace
+      - $PWD/workspace_data:/workspace
     environment:
       - COMFYUI_DISTRIBUTED_QUEUE_CONNECTION_URI=amqp://guest:guest@rabbitmq:5672
       - COMFYUI_DISTRIBUTED_QUEUE_FRONTEND=1
@@ -45,6 +45,9 @@ services:
     command:
       - comfyui
       - --listen
+      - --base_paths
+      - .
+      - /workspace
     healthcheck:
       test: curl -f http://localhost:8188/object_info
       interval: 10s

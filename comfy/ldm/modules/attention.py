@@ -420,7 +420,6 @@ def pytorch_style_decl(func):
     :param func:
     :return:
     """
-
     @wraps(func)
     def wrapper(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
         if skip_reshape:

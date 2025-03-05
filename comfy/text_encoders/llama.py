@@ -127,7 +127,6 @@ class Attention(nn.Module):
         output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True)
         return self.o_proj(output)
 
-
 class MLP(nn.Module):
     def __init__(self, config: Llama2Config, device=None, dtype=None, ops: Any = None):
         super().__init__()

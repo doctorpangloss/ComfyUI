@@ -309,7 +309,6 @@ def model_lora_keys_unet(model, key_map=None):
             if k.endswith(".weight"):
                 key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
                 key_map["lora_unet_{}".format(key_lora)] = k
-
                 key_map["{}".format(k[:-len(".weight")])] = k  # generic lora format without any weird key names
             else:
                 key_map["{}".format(k)] = k  # generic lora format for not .weight without any weird key names

@@ -115,7 +115,6 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
     for x in inputs:
         input_data = inputs[x]
         input_type, input_category, input_info = get_input_info(class_def, x, valid_inputs)
-
         def mark_missing():
             missing_keys[x] = True
             input_data_all[x] = (None,)

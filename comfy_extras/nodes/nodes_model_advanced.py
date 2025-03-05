@@ -29,7 +29,6 @@ class X0(comfy.model_sampling.EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
         return model_output
 
-
 class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete):
     original_timesteps = 50
 

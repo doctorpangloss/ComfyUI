@@ -713,7 +713,6 @@ class SaveImagesResponse(CustomNode):
             if not uri_is_remote and not os.path.isabs(uri):
                 uri = os.path.join(output_directory, uri)
             abs_path = uri
-
             fsspec_kwargs = {}
             if not uri_is_remote:
                 fsspec_kwargs["auto_mkdir"] = True
@@ -766,12 +765,10 @@ class SaveImagesResponse(CustomNode):
             }
 
             images_.append(img_item)
-
         if "ui" in ui_images_result and "images" in ui_images_result["ui"]:
             ui_images_result["result"] = (ui_images_result["ui"]["images"],)
 
         return ui_images_result
-
 
     def subfolder_of(self, local_uri, output_directory):
         return os.path.dirname(os.path.relpath(os.path.abspath(local_uri), os.path.abspath(output_directory)))

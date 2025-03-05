@@ -69,7 +69,6 @@ os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
 os.environ["TORCHINDUCTOR_AUTOGRAD_CACHE"] = "1"
 
-
 def _fix_pytorch_240():
     """Fixes pytorch 2.4.0"""
     torch_spec = importlib.util.find_spec("torch")
